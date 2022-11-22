@@ -2,9 +2,6 @@
 #include <cmath>
 #include <cstring>
 
-#include <bitset> //not needed
-
-
 using namespace std;
 
 int oddmultiple(int num, int divis){
@@ -16,19 +13,30 @@ int oddmultiple(int num, int divis){
 
 class whirlpool {
   public:
-  unsigned int *message;
-  unsigned int CState[4][4];
-  unsigned int KState[4][4];
-  int numblocks=0;
-
-  void hash(char *m);
-  void pad(char *m);
-  void w();
-
-  void addroundkey();
-  void subbytes();
-  void shiftcollumns();
-  void mixrows();
+    unsigned int *message;
+    unsigned int CState[4][4];
+    unsigned int KState[4][4];
+    int numblocks=0;
+    
+    
+    unsigned int ebox[16]=[0x1, 0xb, 0x9, 0xc,0xd, 0x6, 0xf, 0x3, 0xe, 0x8, 0x7, 0x4, 0xa, 0x2, 0x5, 0x0]; //e mini box for mix rows
+    unsigned int eboxinv[16]=[0xf, 0x0, 0xd, 0x7, 0xb, 0xe, 0x5, 0xa, 0x9, 0x2, 0xc, 0x1, 0x3, 0x4, 0x8, 0x6]; //e-1 mini box for mix rows
+    unsigned int rbox[16]=[0x7, 0xc, 0xb, 0xd, 0xe, 0x4, 0x9, 0xf, 0x6, 0x3, 0x8, 0xa, 0x2, 0x5, 0x1, 0x0]; //r mini box for mix rows
+    
+    
+    void hash(char *m); //main hash algorithm
+    void pad(char *m); //pads the text and copies into message
+    void w(); //block cipher w
+    
+    
+    void addroundkey();
+    
+    void subbytes();
+    
+    void shiftcollumns();
+    
+    void mixrows();
+    void sbox(); //sbox algorithm for mixrows
 };
 
 void whirlpool::hash(char *m){
@@ -37,10 +45,26 @@ void whirlpool::hash(char *m){
   for (int i=0; i < numblocks*  4; i++){ //smaller than number of bytes in message
     for (int j=0; j<16; j++){ //copies one block into the value CState
       CState[j/4][j%4] = message[i*16+j];
-      printf("%032b  i=%03d j=%03d i+j=%03d\n", message[i*16+j], i*16, j, i*16+j);
+      printf("%032b  i=%d j=%d i+j=%d\n",  i*16, j, i*16+j);
     }
     printf("\n\n");
   };
+}
+
+void whirlpool::sbox(unsigned int x){
+    unsigned int y=0; //value after algorithm
+    //this is the diffusion layer, using e box, e-1 box and r box
+    //   0          1        2        3
+    //|........|........|........|........|
+    // 31-24     23-16    15-8      7-0
+    for (int i=0; i<4; i++){
+        //the bits are x<<8*i>>24 // gets the bits to be last 8. than pushes to first
+        //first 4 bits are (x<<8*i>>24)>>4
+        //last 4 bits are (x<<8*i>>24)<<28>>28
+        y^= ebox[(x<<8*i>>24)>>4]^rbox[ebox[(x<<8*i>>24)>>4]^eboxinv[(x<<8*i>>24)<<28>>28]];
+        y^= eboxinv[(x<<8*i>>24)<<28>>28]^rbox[ebox[(x<<8*i>>24)>>4]^eboxinv[(x<<8*i>>24)<<28>>28]];
+    }
+    return y;
 }
 
 void whirlpool::pad(char *m){
@@ -79,7 +103,6 @@ void whirlpool::pad(char *m){
   /**************************************************************************\
   this section is getting copying the message into the message
   \**************************************************************************/
-  /*
   printf("numblocks=%d   bits=%d  msize=%d\n", numblocks, bits, msize);
   message = new unsigned int[bits+256];//size of padding, plus block for size of origional message
   int i=0, j;
@@ -98,17 +121,16 @@ void whirlpool::pad(char *m){
   printf("msize/4=%03d  Xor value=%032b\n\n", msize/4, 1<<((32-(msize*8/4)%32)+1));
   message[msize/4] ^= 1<<((32-(msize*8/4)%32)+1); //sets the end of the message to a 1 bit
   message[(bits+256)/4-1] = msize; //set the last 256 bits to the size
-
   printf("bits=%d  (bits+256)/4=%d\n", bits, (bits+256)/4);
   for (int i=0; i<(bits+256)/4; i+=4){
     printf("bytes %03d-%03d = %032b\n", i+1, i+4, message[i]);
   }
-  */
 };
 
 
 int main(int argc, char *argv[]){
+printf("%s\n\n", argv[1]);
   whirlpool instance;
-  instance.pad(argv[1]);
+  instance.sbox[(unsigned int) 0x00000000];
   return 0;
 }
