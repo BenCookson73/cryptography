@@ -14,64 +14,126 @@ int oddmultiple(int num, int divis){
 class whirlpool {
   private:
     unsigned int *message;
-    unsigned int CState[4][4];
-    unsigned int KState[4][4];
-    int numblocks=0;
+    unsigned int CState[4][4]; //the plaintext
+    unsigned int KState[4][4]; //the key
+    unsigned int HState[4][4]; // the hash
+        int numblocks=0;
 
     unsigned int ebox[16]={0x1, 0xb, 0x9, 0xc,0xd, 0x6, 0xf, 0x3, 0xe, 0x8, 0x7, 0x4, 0xa, 0x2, 0x5, 0x0}; //e mini box for mix rows
     unsigned int eboxinv[16]={0xf, 0x0, 0xd, 0x7, 0xb, 0xe, 0x5, 0xa, 0x9, 0x2, 0xc, 0x1, 0x3, 0x4, 0x8, 0x6}; //e-1 mini box for mix rows
     unsigned int rbox[16]={0x7, 0xc, 0xb, 0xd, 0xe, 0x4, 0x9, 0xf, 0x6, 0x3, 0x8, 0xa, 0x2, 0x5, 0x1, 0x0}; //r mini box for mix rows
+    unsigned int Cmatrix[8][8] = {
+      {1,1,4,1,8,5,2,9}, {9,1,1,4,1,8,5,2}, {2,9,1,1,4,1,8,5}, {5,2,9,1,1,4,1,8},
+      {8,5,2,9,1,1,4,1}, {1,8,5,2,9,1,1,4}, {4,1,8,5,2,9,1,1}, {1,4,1,8,5,2,9,1}};
     void pad(char *m); //pads the text and copies into message
     void w(); //block cipher w
     void addroundkey();
+    void addkey();
     void subbytes();
     void shiftcollumns();
     void mixrows();
     unsigned int sbox(unsigned int x); //sbox algorithm for mixrows
   public:
-    void hash(char *m); //main hash algorithm
+    void hash(char *m, unsigned int IV[16]); //main hash algorithm
+    void printfstates();
+    void showhash();
     whirlpool(){ //constructor for whirlpool-- prepares everything
+      //zero out all states
+      for (int i=0; i<16; i++){
+        CState[i/4][i%4]=0;
+        KState[i/4][i%4]=0;
+        HState[i/4][i%4]=0;
+      }
       return;
     };
 };
-
-void whirlpool::hash(char *m){
+void whirlpool::hash(char *m, unsigned int IV[16]){
   pad(m);
+  for(int i=0; i<16; i++){ //copies IV into KState
+    KState[i/4][i%4] = IV[i];
+  };
   for(int block=0; block<numblocks; block++){
     printf("\n------ block %d ------", block+1);
     for(int i=0; i<16; i++){ //copies message into CState
       CState[i/4][i%4] = message[block*16+i];
-      printf("\n[%d][%d] = %032b", i/4, i%4, message[block*16+i]);
+    };
+    printf("before w() round function\n");
+    printfstates();
+    w();
+    for(int i=0; i<16; i++){ //Xor HState and CState and tKState
+      HState[i/4][i%4] ^= CState[i/4][i%4] ^ KState[i/4][i%4];
     }
-    printf("\n");
-    mixrows();
-    for(int i=0; i<16; i++){ //copies message into CState
-      printf("\n[%d][%d] = %032b", i/4, i%4, message[block*16+i]);
-    }
+    printf("after w() round function\n");
+    printfstates();
     printf("\n\n\n");
+    showhash();
   }
+}
+void whirlpool::w(){
+  addkey();
+  subbytes();
+  shiftcollumns();
 }
 
 void whirlpool::mixrows(){
+  int ProductMatrix[4][4];
+  // matrix multiplication of each byte
+  for(int i=0; i<64; i++){
+    //multiply with every byte on its row
+    for(int j=0; j<)
+  }
+}
+void whirlpool::shiftcollumns(){
+  unsigned int tempCState[64], tempKState[64]; //temporary
+  for (int i=0; i<64; i++){
+    tempCState[i]=0;
+    tempKState[i]=0;
+  }
+  tempCState[0] = CState[0][0];
+  for (int i=0; i<64; i++){
+    //(((64-i)*7)%64)
+    int loc = (((64-i)*7)%64);
+    tempCState[i] = CState[loc/16][loc%4]<<(24-loc%4*8);
+    tempKState[i] = KState[loc/16][loc%4]<<(24-loc%4*8);
+    printf("\ntemp[%d] = CState[%d][%d]   %d", i, (((64-i)*7)%64)/4, (((64-i)*7)%64)%4, (((64-i)*7)%64));
+  }
+  for (int i=0; i<16; i++){
+    for (int j=0; j<4; j++){
+      CState[i/4][i%4]^=tempCState[i*4+j];
+      KState[i/4][i%4]^=tempKState[i*4+j];
+      printf("\nState[%d][%d]^=temp[%d]\ti=%d\tj=%d", i/4, i%4, i*4+j, i, j);
+    }
+  }
+
+  printf("\n");
+}
+void whirlpool::subbytes(){// working
+  printf("\n-------substitute bytes-------\n");
   for(int i=0; i<16; i++){
-    printf("CState[%d][%d] = %08x   was %08x\n", i/4, i%4, sbox(CState[i/4][i%4]), CState[i/4][i%4]);
+    printf("CState[%d][%d] = %08x\t\tKState[%d][%d] = %08x\t\t", i/4, i%4, CState[i/4][i%4], i/4, i%4, KState[i/4][i%4]);
     CState[i/4][i%4]=sbox(CState[i/4][i%4]);
+    KState[i/4][i%4]=sbox(KState[i/4][i%4]);
+    printf("CState[%d][%d] = %08x\t\tKState[%d][%d] = %08x\n", i/4, i%4, CState[i/4][i%4], i/4, i%4, KState[i/4][i%4]);
+  }
+}
+void whirlpool::addkey(){// Xors CState with KState
+  for (int i=0; i<16; i++){
+    CState[i/4][i%4]^=KState[i/4][i%4];
   }
 }
 
-unsigned int whirlpool::sbox(unsigned int x){
+unsigned int whirlpool::sbox(unsigned int x){//working
     unsigned int y=0; //value after algorithm
     unsigned int r=0;
     //this is the diffusion layer, using e box, e-1 box and r box
     for (int i=0; i<4; i++){
       r = rbox[ebox[x<<(24-i*8)>>28]^eboxinv[x<<(24-i*8+4)>>28]];
-      y ^= ebox[rbox[ebox[x<<(24-i*8)>>28]^eboxinv[x<<(24-i*8+4)>>28]]^ebox[x<<(24-i*8)>>28]]<<(24-8*i+4); //first 4 bits
-      y ^= eboxinv[rbox[ebox[x<<(24-i*8)>>28]^eboxinv[x<<(24-i*8+4)>>28]]^eboxinv[x<<(24-i*8+4)>>28]]<<(24-8*i);
+      y ^= ebox[rbox[ebox[x<<(24-i*8)>>28]^eboxinv[x<<(24-i*8+4)>>28]]^ebox[x<<(24-i*8)>>28]]<<(8*i+4);
+      y ^= eboxinv[rbox[ebox[x<<(24-i*8)>>28]^eboxinv[x<<(24-i*8+4)>>28]]^eboxinv[x<<(24-i*8+4)>>28]]<<(8*i);
       }
     return y;
 }
-
-void whirlpool::pad(char *m){
+void whirlpool::pad(char *m){//working i think
   printf("\n\n---------- padding ----------\n");
   int msize = strlen(m);
   int bits=msize*8; //gets number of bits
@@ -105,7 +167,7 @@ void whirlpool::pad(char *m){
 
 
   /**************************************************************************\
-  this section is getting copying the message into the message
+  this section is copying the message into message variable
   \**************************************************************************/
   printf("numblocks=%d   bits=%d  msize=%d\n", numblocks, bits, msize);
   message = new unsigned int[bits+256];//size of padding, plus block for size of origional message
@@ -122,7 +184,6 @@ void whirlpool::pad(char *m){
     };
     i++;
     message[i-1]=var;
-    printf("conformation of copying: message[%d] = %032b\n", i-1, message[i-1]);
   };
 
   printf("end of padding=%032b\n\n", 1<<((32-(((msize%8)*8)%32))-1));
@@ -134,12 +195,25 @@ void whirlpool::pad(char *m){
   for (int i=0; i<(bits+256)/4; i+=4){
     printf("bits %03d-%03d  bytes %03d-%03d = %032b\n", i, i+3, i/4, i/4+1, message[i/4]);
   }
-}; //working i think
+};
 
+
+void whirlpool::printfstates(){
+  for(int i=0; i<16; i++){ //copies message into CState
+    printf("CSate[%d][%d]=%032b\t\tKState[%d][%d]=%032b\t\tHState[%d][%d]=%032b\n",
+     i/4, i%4, CState[i/4][i%4], i/4, i%4, KState[i/4][i%4],  i/4, i%4, HState[i/4][i%4]);
+  }
+}
+void whirlpool::showhash(){
+  printf("\n\nhash=");
+  for(int i=0; i<16; i++){
+    printf("%08x", HState[i/4][i%4]);
+  }
+}
 
 int main(int argc, char *argv[]){
   whirlpool instance;
-
-  instance.hash(argv[1]);
+  unsigned int IV[16]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+  instance.hash(argv[1], IV);
   return 0;
 }
