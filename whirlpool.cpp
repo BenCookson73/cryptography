@@ -73,14 +73,34 @@ void whirlpool::w(){
   addkey();
   subbytes();
   shiftcollumns();
+  mixrows();
 }
 
 void whirlpool::mixrows(){
+  printf("\n\n\n  ----mix rows------\n\n");
   int ProductMatrix[4][4];
+  for(int i=0; i<64; i++){ //zero out ProductMatrix
+    ProductMatrix[i/16][i%4]=0;
+  };
   // matrix multiplication of each byte
-  for(int i=0; i<64; i++){
+  for (int i=0; i<64; i++){
     //multiply with every byte on its row
-    for(int j=0; j<)
+    for(int j=0; j<8; j++){
+      printf("Cmatrix[%02d][%02d] = %02x\t", (j*8+i%8)/8, (j*8+i%8)%8, (Cmatrix[(j*8+i%8)/8][(j*8+i%8)%8]));
+      printf("CState[%02d][%02d] byte %02d = %02x\t", ((i-(i%8))+j)/16, ((i-(i%8))+j)%4, (24-(i%4*8)), (CState[((i-(i%8))+j)/16][((i-(i%8))+j)%4]<<(24-(i%4*8))>>24));
+      printf("Cmatrix*CState = %02x\t", ((CState[((i-(i%8))+j)/16][((i-(i%8))+j)%4]<<(24-(i%4*8))>>24)*(Cmatrix[(j*8+i%8)/8][(j*8+i%8)%8]))%(0xFF)); //Xor with 0xFF to get only 8 bytes
+      printf("value = %08x\t", (((CState[((i-(i%8))+j)/16][((i-(i%8))+j)%4]<<(24-(i%4*8))>>24)*(Cmatrix[(j*8+i%8)/8][(j*8+i%8)%8]))%(0xFF))<<(24-(i%4*8)));
+
+      printf("ProductMatrix[%02d][%02d] = %08x\t", i/16, (i/4)%4, ProductMatrix[i/16][(i/4)%4]);
+      printf("ProductMatrix^(Cmatrix*CState) = %08x", ProductMatrix[i/16][(i/4)%4]^(((CState[((i-(i%8))+j)/16][((i-(i%8))+j)%4]<<(24-(i%4*8))>>24)*(Cmatrix[(j*8+i%8)/8][(j*8+i%8)%8]))%(0xFF)<<(24-(i%4*8))));
+
+      ProductMatrix[i/16][(i/4)%4] ^= (((CState[((i-(i%8))+j)/16][((i-(i%8))+j)%4]<<(24-(i%4*8))>>24)*(Cmatrix[(j*8+i%8)/8][(j*8+i%8)%8]))%(0xFF))<<(24-(i%4*8));
+      printf("\n");
+    }
+    printf("\n\n");
+  }
+  for (int i=0; i<64; i++){
+    CState[i/16][i%4] = ProductMatrix[i/16][i%4];
   }
 }
 void whirlpool::shiftcollumns(){
@@ -167,7 +187,7 @@ void whirlpool::pad(char *m){//working i think
 
 
   /**************************************************************************\
-  this section is copying the message into message variable
+  this section is getting copying the message into the message
   \**************************************************************************/
   printf("numblocks=%d   bits=%d  msize=%d\n", numblocks, bits, msize);
   message = new unsigned int[bits+256];//size of padding, plus block for size of origional message
