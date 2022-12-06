@@ -40,17 +40,17 @@ class whirlpool {
     void showhash();
     whirlpool(){ //constructor for whirlpool-- prepares everything
       //zero out all states
-      for (int i=0; i<16; i++){
-        CState[i/4][i%4]=0;
-        KState[i/4][i%4]=0;
-        HState[i/4][i%4]=0;
+      for (int i=0; i<64; i++){
+        CState[i/8][i%8]=0;
+        KState[i/8][i%8]=0;
+        HState[i/8][i%8]=0;
       }
       return;
     };
 };
-void whirlpool::hash(char *m, unsigned int IV[16]){
+void whirlpool::hash(char *m, byte IV[64]){
   pad(m);
-  for(int i=0; i<16; i++){ //copies IV into KState
+  for(int i=0; i<64; i++){ //copies IV into KState
     KState[i/4][i%4] = IV[i];
   };
   for(int block=0; block<numblocks; block++){ //loop though every block
