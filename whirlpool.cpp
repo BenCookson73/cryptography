@@ -1,30 +1,36 @@
 #include <iostream>
 #include <cmath>
 #include <cstring>
+#include <cstdint>
 
-using namespace std;
+typedef uint8_t byte;
 
 int oddmultiple(int num, int divis){
-  if (num%divis) return 0;
+  if (num%divis) return 0; //number is not multiple at allS
   if ((num/divis)%2) return 0;
   return 1;
 };
 
-
 class whirlpool {
   private:
-    unsigned int *message;
-    unsigned int CState[4][4]; //the plaintext
-    unsigned int KState[4][4]; //the key
-    unsigned int HState[4][4]; // the hash
-        int numblocks=0;
+    byte *message;
+    byte CState[8][8]; //the plaintext
+    byte KState[8][8]; //the key
+    byte HState[8][8]; // the hash
+    int numblocks=0;
 
-    unsigned int ebox[16]={0x1, 0xb, 0x9, 0xc,0xd, 0x6, 0xf, 0x3, 0xe, 0x8, 0x7, 0x4, 0xa, 0x2, 0x5, 0x0}; //e mini box for mix rows
-    unsigned int eboxinv[16]={0xf, 0x0, 0xd, 0x7, 0xb, 0xe, 0x5, 0xa, 0x9, 0x2, 0xc, 0x1, 0x3, 0x4, 0x8, 0x6}; //e-1 mini box for mix rows
-    unsigned int rbox[16]={0x7, 0xc, 0xb, 0xd, 0xe, 0x4, 0x9, 0xf, 0x6, 0x3, 0x8, 0xa, 0x2, 0x5, 0x1, 0x0}; //r mini box for mix rows
-    unsigned int TransformationMatrix[8][8] = {
-      {1,1,4,1,8,5,2,9}, {9,1,1,4,1,8,5,2}, {2,9,1,1,4,1,8,5}, {5,2,9,1,1,4,1,8},
-      {8,5,2,9,1,1,4,1}, {1,8,5,2,9,1,1,4}, {4,1,8,5,2,9,1,1}, {1,4,1,8,5,2,9,1}};
+    byte ebox[16]={0x1,0xb,0x9,0xc,0xd,0x6,0xf,0x3,0xe,0x8,0x7,0x4,0xa,0x2,0x5,0x0}; //e mini box for mix rows
+    byte eboxinv[16]={0xf,0x0,0xd,0x7,0xb,0xe, 0x5, 0xa, 0x9, 0x2, 0xc, 0x1, 0x3, 0x4, 0x8, 0x6}; //e-1 mini box for mix rows
+    byte rbox[16]={0x7, 0xc, 0xb, 0xd, 0xe, 0x4, 0x9, 0xf, 0x6, 0x3, 0x8, 0xa, 0x2, 0x5, 0x1, 0x0}; //r mini box for mix rows
+    byte TransformationMatrix[8][8] = {
+      {1,1,4,1,8,5,2,9},
+      {9,1,1,4,1,8,5,2},
+      {2,9,1,1,4,1,8,5},
+      {5,2,9,1,1,4,1,8},
+      {8,5,2,9,1,1,4,1},
+      {1,8,5,2,9,1,1,4},
+      {4,1,8,5,2,9,1,1},
+      {1,4,1,8,5,2,9,1}}; //transformation matrix for mixrows
     void pad(char *m); //pads the text and copies into message
     void w(); //block cipher w
     void addroundkey();
@@ -33,126 +39,64 @@ class whirlpool {
     void subbytes();
     void shiftcollumns();
     void mixrows();
-    unsigned int sbox(unsigned int x); //sbox algorithm for mixrows
+    byte sbox(byte x); //sbox algorithm for mixrows
   public:
-    void hash(char *m, unsigned int IV[16]); //main hash algorithm
-    void showhash();
+    void hash(char *m, byte IV[16]); //main hash algorithm
+    byte digest[64];
     whirlpool(){ //constructor for whirlpool-- prepares everything
       //zero out all states
-      for (int i=0; i<16; i++){
-        CState[i/4][i%4]=0;
-        KState[i/4][i%4]=0;
-        HState[i/4][i%4]=0;
+      for (int i=0; i<64; i++){
+        CState[i/8][i%8]=0;
+        KState[i/8][i%8]=0;
+        HState[i/8][i%8]=0;
       }
       return;
     };
+    void printfstates();
+    void showhash();
 };
-void whirlpool::hash(char *m, unsigned int IV[16]){
-  pad(m);
-  for(int i=0; i<16; i++){ //copies IV into KState
-    KState[i/4][i%4] = IV[i];
-  };
-  for(int block=0; block<numblocks; block++){ //loop though every block
-    for(int i=0; i<16; i++){ //copies message into CState
-      CState[i/4][i%4] = message[block*16+i];
-    };
-    w();
-    for(int i=0; i<16; i++){ //Xor HState and CState and tKState
-      HState[i/4][i%4] ^= CState[i/4][i%4] ^ KState[i/4][i%4];
-    }
+
+void whirlpool::hash(char *m, byte IV[64]){
+  for (int i=0; i<255; i++){
+    sbox(i);
+    if ((i+1)%8==0) printf("\n");
   }
-  showhash();
+  for(int i=0; i<64; i++){ //copies IV into KState
+    KState[i/8][i%8] = IV[i];
+  };
+  pad(m);
+  for(int block=0; block<numblocks; block++){ //loop though every block
+    printf("\n------ block %d ------", block+1);
+    for(int i=0; i<64; i++){ //copies message into CState
+      CState[i/8][i%8] = message[(block*64)+i];
+    };
+    printf("before w() round function\n");
+    printfstates();
+    w();
+    for(int i=0; i<64; i++){ //Xor HState and CState and tKState
+      HState[i/8][i%8] ^= CState[i/8][i%8] ^ KState[i/4][i%4];
+    }
+    printf("after w() round function\n");
+    printfstates();
+    printf("\n\n\n");
+    showhash();
+  }
 }
 void whirlpool::w(){
-  addkey();
-  for(int i=0; i<10; i++){
+  for(int round=0; round<10; round++){
     subbytes();
     shiftcollumns();
     mixrows();
-    addroundconst(i);
+    addroundconst(round);
     addkey();
-  } //10 rounds
+  }
 }
 
-void whirlpool::mixrows(){
-  int ProductCState[4][4];
-  int ProductKState[4][4];
-  for(int i=0; i<64; i++){ //zero out ProductCState and ProductKState
-    ProductCState[i/16][i%4]=0;
-    ProductKState[i/16][i%4]=0;
-  };
-  // matrix multiplication of each byte
-  for (int i=0; i<64; i++){ //matrix multiplication into product matrix
-    //multiply with every byte on its row
-    for(int j=0; j<8; j++){ //loops through the rows and collumns in th
-      ProductCState[i/16][(i/4)%4] ^= (((CState[((i-(i%8))+j)/16][((i-(i%8))+j)%4]<<(24-(i%4*8))>>24)*(TransformationMatrix[(j*8+i%8)/8][(j*8+i%8)%8]))%(0x100))<<(24-(i%4*8));
-      // ((CState[((i-(i%8))+j)/16][((i-(i%8))+j)%4]<<(24-(i%4*8))>>24) is the corresponding address in said row, and the corresponding bytes
-      // (TransformationMatrix[(j*8+i%8)/8][(j*8+i%8)%8]) is the transformation value on the corresponding collumn
-      ProductKState[i/16][(i/4)%4] ^= (((KState[((i-(i%8))+j)/16][((i-(i%8))+j)%4]<<(24-(i%4*8))>>24)*(TransformationMatrix[(j*8+i%8)/8][(j*8+i%8)%8]))%(0x100))<<(24-(i%4*8));
-    }
-  }
-  for (int i=0; i<64; i++){ //copies the product matrixes into the states
-    CState[i/16][i%4] = ProductCState[i/16][i%4];
-    KState[i/16][i%4] = ProductKState[i/16][i%4];
-  }
-}
-void whirlpool::shiftcollumns(){
-  unsigned int tempCState[64], tempKState[64]; //temporary
-  for (int i=0; i<64; i++){ //zero out the temporary states
-    tempCState[i]=0;
-    tempKState[i]=0;
-  }
-  tempCState[0] = CState[0][0]; //set first value to initial of CState
-  tempKState[0] = KState[0][0]; //set first value to initial of KState
-  for (int i=1; i<64; i++){ //shifts the collumns
-    //(((64-i)*7)%64) is the next location for matrix, for reasons even i don't quite understand
-    tempCState[i] = CState[(((64-i)*7)%64)/16][(((64-i)*7)%64)%4]<<(24-(((64-i)*7)%64)%4*8);
-    tempKState[i] = KState[(((64-i)*7)%64)/16][(((64-i)*7)%64)%4]<<(24-(((64-i)*7)%64)%4*8);
-  }
-  for (int i=0; i<16; i++){ //puts temporrary states into live states
-    for (int j=0; j<4; j++){
-      CState[i/4][i%4]^=tempCState[i*4+j];
-      KState[i/4][i%4]^=tempKState[i*4+j];
-    }
-  }
-
-}
-void whirlpool::subbytes(){
-  for(int i=0; i<16; i++){
-    CState[i/4][i%4]=sbox(CState[i/4][i%4]);
-    KState[i/4][i%4]=sbox(KState[i/4][i%4]);
-  }
-}
-void whirlpool::addkey(){// Xors CState with KState
-  for (int i=0; i<16; i++){
-    CState[i/4][i%4]^=KState[i/4][i%4];
-  }
-}
-void whirlpool::addroundconst(int round){
-  unsigned int RoundConst[4][4]; //round constant for multiplication with key
-  for(int i=0; i<16; i++){ //zero out round constant
-    RoundConst[i/4][i%4] = 0;
-  }
-  for(int i=0; i<8; i++){ //calculate round constant
-    RoundConst[0][i/4] ^= sbox((8*(round)+i))<<24>>(i%4*8);
-  }
-  for (int i=0; i<16; i++){ //Xor the KSate with the round constant
-    KState[i/4][i%4] ^= RoundConst[i/4][i%4];
-  }
-}
-unsigned int whirlpool::sbox(unsigned int x){
-    unsigned int sval=0; //value after algorithm
-    //this is the diffusion layer, using e box, e-1 box and r box
-    for (int i=0; i<4; i++){ //ngl don't know what to say other than this is the sbox algorithm part
-      sval ^= ebox[rbox[ebox[x<<(24-i*8)>>28]^eboxinv[x<<(24-i*8+4)>>28]]^ebox[x<<(24-i*8)>>28]]<<(8*i+4);
-      sval ^= eboxinv[rbox[ebox[x<<(24-i*8)>>28]^eboxinv[x<<(24-i*8+4)>>28]]^eboxinv[x<<(24-i*8+4)>>28]]<<(8*i);
-      }
-    return sval;
-}
 void whirlpool::pad(char *m){
+  printf("\n\n---------- padding ----------\n");
   int msize = strlen(m);
   int bits=msize*8; //gets number of bits
-
+  printf("bits=%d  msize=%d\n", bits, msize);
   /**************************************************************************\
   this section is getting the number of bits including padding and the message
   should result in an odd multiple of 256 as bits
@@ -162,46 +106,155 @@ void whirlpool::pad(char *m){
     bits+=512;
   }
   if (bits%256){ //if bits are not a multiple of 256
+    printf("bits are not a multiple of 256  %d\n", bits);
     if (bits<256){
+      printf("bits smaller than 256  %d\n", bits);
       bits=256; // if it is less than 256, bring to 256, the nearest block
     }
     else{
+      printf("bits are more than 256  %d -> %d\n", bits, bits + (256-bits%256));
       bits+= 256-bits%256; // else add the remainder to bring to closet 256
     }
+    printf("bits=%d\n", bits);
   };
-  if ((bits/256)%2==0){
+  if (oddmultiple(bits, 256)==0){
+    printf("bits are not an odd multiple of 256 =  %d", bits);
     bits+=256;
   }
   numblocks = (bits/256)+1; //add one for the final 256 bits
-
+  printf("\nnumblocks = %d   bits=%d", numblocks, bits);
 
   /**************************************************************************\
   this section is getting copying the message into the message
   \**************************************************************************/
-  message = new unsigned int[bits+256];//size of padding, plus block for size of origional message
-  int i=0, j;
-  unsigned int var;
-  while (i*4<msize){ //copies the bytes into the message array
-    var = 0;
-    for(j=0; j<4; j++){
-      if (4*i+j<msize){
-        var ^= m[4*i+j]<<((24-8*j)); //works by shifting bytes to right location then Xoring it
-      }
-    };
-    i++;
-    message[i-1]=var;
-  };
+  printf("\nnumblocks=%d   bits=%d  msize=%d\n", numblocks, bits+256, msize);
+  message = new byte[bits+256];//size of padding, plus block for size of origional message
 
-  message[msize/4] ^= 1<<((32-(((msize%8)*8 )%32))-1); //sets the end of the message to a 1 bit
+  int i=0;
+  for(int i=0; i<msize; i++){
+    message[i] = (byte) m[i];
+    printf("message[%02i] = %08b  = %c\n", i, m[i], m[i]);
+  }
+  //end of padding is (byte) (1<<((int) std::log2(m[msize-1]&-m[msize-1])-1))
+  printf("end of padding=%b\n\n", (byte) (1<<((int) std::log2(m[msize-1]&-m[msize-1])-1)));
+  if((1<<((int) std::log2(m[msize-1]&-m[msize-1])-1)>=1)){
+    message[msize-1] ^= 1<<((int) std::log2(m[msize-1]&-m[msize-1])-1);
+  }
+  else{
+    message[msize] = (byte) 128;
+  }
+  //sets the end of the message to a 1 bit
 
 
-  message[(bits+256)/(4*4)-1] = msize; //set the last 256 bits to the size
+  message[(bits+256)/8-1] = msize; //set the last 256 bits to the size
+  printf("bits=%d  (bits+256)/8=%d\n", bits, (bits+256)/8-1);
+  for (int i=0; i<(bits+256)/8; i++){
+    if(i%4==0) printf("\nbytes %03i-%03i\t", i, i+3);
+    printf("%08b ", message[i]);
+  }
 };
 
+void whirlpool::addkey(){
+  for (int i=0; i<64; i++){
+    CState[i/8][i%8] ^= KState[i/8][i%8];
+  }
+}
+void whirlpool::addroundconst(int round){
+  printf("\n--------add round constant--------------\n");
+  byte RoundConst[8][8]; //round constant for multiplication with key
+  for(int i=0; i<64; i++){ //zero out round constant
+    RoundConst[i/8][i%8] = 0;
+  }
+  for(int i=0; i<8; i++){ //calculate round constant
+    RoundConst[0][i] = sbox((8*(round)+i));
+    printf("round = %02d   i=%02d     roundconst[0][%02d] ^= sbox(%02x) ^= %02x>>%02d   = %08x\n", round, i, i/4, (8*(round)+i), sbox((8*(round)+i))<<24>>24, (i%4*8), RoundConst[0][i/4]);
+  }
+  for (int i=0; i<64; i++){ //Xor the KSate with the round constant
+    KState[i/8][i%8] ^= RoundConst[i/8][i%8];
+    printf("KState[%02d][%02d] ^=\tRoundConst[%02d][%02d] = %08x\t\t=%08x\n", i/4, i%4, i/4, i%4, RoundConst[i/4][i%4], KState[i/4][i%4]);
+  }
+}
+
+void whirlpool::mixrows(){
+  printf("\n\n\n  ----mix rows------\n\n");
+  byte ProductCState[8][8];
+  byte ProductKState[8][8];
+  for(int i=0; i<64; i++){ //zero out ProductCState and ProductKState
+    ProductCState[i/8][i%8]=0;
+    ProductKState[i/8][i%8]=0;
+  };
+  // matrix multiplication of each byte
+  for (int i=0; i<64; i++){ //matrix multiplication into product matrix
+    //multiply with every byte on its row
+    for(int j=0; j<8; j++){ //loops through the rows and collumns in the
+      //(byte) (Productstate[i/8][i%8]^(CState[i/8][j]*TransformationMatrix[j][i%8]))
+      printf("ProductCState[%d][%d]\tTransformationMatrix[%d][%d] = %02x\tCState[%d][%d] = %02x\t|\t",i/8, i%8, j, i%8, TransformationMatrix[j][i%8], i/8, j, CState[i/8][j]);
+      printf("ProductKState[%d][%d]\tTransformationMatrix[%d][%d] = %02x\tKState[%d][%d] = %02x\t",i/8, i%8, j, i%8, TransformationMatrix[j][i%8], i/8, j, KState[i/8][j]);
+
+      ProductCState[i/8][i%8] ^= TransformationMatrix[j][i%8] * CState[i/8][j];
+      ProductKState[i/8][i%8] ^= TransformationMatrix[j][i%8] * KState[i/8][j];
+      printf("ProductCState[%02d][%02d] = %02x | ProductKState[%02d][%02d] = %02x\n", i/8, i%8, ProductCState[i/8][i%8], i/8, i%8, ProductKState[i/8][i%8]);
+    }
+    printf("\n\n");
+  }
+  for (int i=0; i<64; i++){ //copies the product matrixes into the states
+    CState[i/8][i%8] = ProductCState[i/8][i%8];
+    KState[i/8][i%8] = ProductKState[i/8][i%8];
+  }
+}
+void whirlpool::shiftcollumns(){
+  byte tempCState[64], tempKState[64]; //temporary
+  for (int i=0; i<64; i++){ //zero out the temporary states
+    tempCState[i]=0;
+    tempKState[i]=0;
+  }
+  tempCState[0] = CState[0][0]; //set first value to initial of CState
+  tempKState[0] = KState[0][0]; //set first value to initial of KState
+  for (int i=1; i<64; i++){ //shifts the collumns
+    //(((64-i)*7)%64) is the next location for matrix, for reasons even i don't quite understand
+    tempCState[i] = CState[(((64-i)*7)%64)/8][(((64-i)*7)%64)%8];
+    tempKState[i] = KState[(((64-i)*7)%64)/8][(((64-i)*7)%64)%8];
+    printf("\ntempCState[%02d] = CState[%d][%d]  or %02d\t|\ttempKState[%02d] = KState[%d][%d]  or %02d", i, (((64-i)*7)%64)/8, (((64-i)*7)%64)%8, (((64-i)*7)%64), i, (((64-i)*7)%64)/8, (((64-i)*7)%64)%8, (((64-i)*7)%64));
+  }
+  for (int i=0; i<64; i++){ //puts temporrary states into live states
+    CState[i/8][i%8] = tempCState[i];
+    KState[i/8][i%8] = tempKState[i];
+  }
+  printf("\n");
+
+}
+void whirlpool::subbytes(){
+  printf("\n-------substitute bytes-------\n");
+  for(int i=0; i<64; i++){
+    printf("CState[%d][%d] = %02x\t\tKState[%d][%d] = %02x\t\t", i/8, i%8, CState[i/8][i%8], i/8, i%8, KState[i/8][i%8]);
+    CState[i/8][i%8]=sbox(CState[i/8][i%8]);
+    KState[i/8][i%8]=sbox(KState[i/8][i%8]);
+    printf("CState[%d][%d] = %02x\t\tKState[%d][%d] = %02x\n", i/8  , i%8, CState[i/8][i%8], i/8, i%8, KState[i/8][i%8]);
+  }
+}
+
+byte whirlpool::sbox(byte x){
+    byte sval=0; //value after algorithm
+    //this is the diffusion layer, using e box, e-1 box and r box
+    sval ^= ebox[rbox[ebox[x>>4]^eboxinv[x&0xF]]^ebox[x>>4]]<<4; //bits 0-3
+    sval ^= eboxinv[rbox[ebox[x>>4]^eboxinv[x&0xF]]^eboxinv[x&0xF]]; //bits 4-7
+    printf("%02x -> %02x\t", x, sval);
+    return sval;
+}
+
+
+void whirlpool::printfstates(){
+  for(int i=0; i<16; i++){ //copies message into CState
+    printf("CSate[%d][%d]=%08b %08b %08b %08b\t\tKState[%d][%d]=%08b %08b %08b %08b\t\tHState[%d][%d]=%08b %08b %08b %08b\n",
+     (i*4)/8, (i*4)%8, CState[(i*4)/8][(i*4)%8], CState[(i*4)/8][(i*4)%8+1], CState[(i*4)/8][(i*4)%8+2], CState[(i*4)/8][(i*4)%8+3],
+     (i*4)/8, (i*4)%8, KState[(i*4)/8][(i*4)%8], KState[(i*4)/8][(i*4)%8], KState[(i*4)/8][(i*4)%8], KState[(i*4)/8][(i*4)%8],
+     (i*4)/8, (i*4)%8, HState[(i*4)/8][(i*4)%8], HState[(i*4)/8][(i*4)%8], HState[(i*4)/8][(i*4)%8], HState[(i*4)/8][(i*4)%8]);
+  }
+}
 void whirlpool::showhash(){
-  printf("hash=");
-  for(int i=0; i<16; i++){
-    printf("%08x", HState[i/4][i%4]);
+  printf("\n\n%s =",message);
+  for(int i=0; i<64; i++){
+    printf("%02x", HState[i/8][i%8]);
   }
 }
 
@@ -210,10 +263,9 @@ int main(int argc, char *argv[]){
     printf("[!!!] error- require command line input for message");
     exit(0);
   }
+  printf("argv[1] = %s\n\n\n", argv[1]);
   whirlpool instance;
-  unsigned int IV[16]={0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000};
-  int start = time(0);
+  byte IV[64] = (byte[64]) {0x0};
   instance.hash(argv[1], IV);
-  printf("\n\n\n####time = %d ####", time(0)-start);
   return 0;
 }
